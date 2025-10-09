@@ -43,6 +43,11 @@ public class Order {
 
     @Enumerated(EnumType.STRING)
     private OrderStatus status; // PLACED, PAID, SHIPPED, CANCELLED
+    
+    @Enumerated(EnumType.STRING)
+    private PaymentStatus paymentStatus; // PENDING, COMPLETED, FAILED
+
+    private String paymentType;  // CREDIT_CARD, UPI, WALLET, etc.
 
     private String shippingAddress;  // Serialized address snapshot (JSON string or flat text)
 

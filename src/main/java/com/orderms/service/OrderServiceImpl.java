@@ -21,6 +21,7 @@ import com.orderms.dto.UserDTO;
 import com.orderms.entity.Order;
 import com.orderms.entity.OrderItem;
 import com.orderms.entity.OrderStatus;
+import com.orderms.entity.PaymentStatus;
 import com.orderms.exception.ForbiddenTaskException;
 import com.orderms.exception.OrderCancelException;
 import com.orderms.exception.OrderNotFoundException;
@@ -55,7 +56,7 @@ public class OrderServiceImpl implements OrderService{
     	
     	// Check if user exists
     	ResponseEntity<UserDTO> userResponse = restTemplate.exchange(
-    			"http://localhost:8081/users/id/" + request.getUserId(), 
+    			"http://userms/id/" + request.getUserId(), 
     			HttpMethod.GET, 
     			entity,
     			UserDTO.class);
@@ -70,7 +71,7 @@ public class OrderServiceImpl implements OrderService{
         for(OrderItemRequest itemReq : request.getItems()) {
         	
         	ResponseEntity<ProductDTO> productResponse = restTemplate.exchange(
-        			"http://localhost:8082/products/nocache/"+itemReq.getProductId(),
+        			"http://productms/nocache/"+itemReq.getProductId(),
         			HttpMethod.GET,
         			entity,
         			ProductDTO.class
@@ -98,6 +99,8 @@ public class OrderServiceImpl implements OrderService{
         orderItems.forEach(oi -> oi.setOrder(order));
         order.setTotalAmount(totalAmount);
         order.setStatus(OrderStatus.PLACED);
+        order.setPaymentType(request.getPaymentType());
+        order.setPaymentStatus(PaymentStatus.PENDING);
         order.setCreatedAt(new Timestamp(System.currentTimeMillis()));
         order.setUpdatedAt(new Timestamp(System.currentTimeMillis()));
         
@@ -118,7 +121,7 @@ public class OrderServiceImpl implements OrderService{
 		HttpEntity<Void> entity = new HttpEntity<>(headers);
 		
 		ResponseEntity<Boolean> userResponse = restTemplate.exchange(
-				"http://localhost:8081/users/auth/validate",
+				"http://userms/users/auth/validate",
 				HttpMethod.POST,
 				entity,
 				Boolean.class
@@ -147,7 +150,7 @@ public class OrderServiceImpl implements OrderService{
 		HttpEntity<Void> entity = new HttpEntity<>(headers);
 		
 		ResponseEntity<Boolean> userResponse = restTemplate.exchange(
-				"http://localhost:8081/users/auth/validate",
+				"http://userms/auth/validate",
 				HttpMethod.POST,
 				entity,
 				Boolean.class
@@ -175,7 +178,7 @@ public class OrderServiceImpl implements OrderService{
 		HttpEntity<Void> entity = new HttpEntity<>(headers);
 		
 		ResponseEntity<Boolean> userResponse = restTemplate.exchange(
-				"http://localhost:8081/users/auth/validate",
+				"http://userms/auth/validate",
 				HttpMethod.POST,
 				entity,
 				Boolean.class
@@ -201,6 +204,21 @@ public class OrderServiceImpl implements OrderService{
 		
 		order.setStatus(OrderStatus.CANCELLED);
 		
+	}
+
+	@Override
+	public void updatePaymentStatus(Long orderId, PaymentStatus status) throws OrderNotFoundException {
+
+		Optional<Order> optional = orderRepository.findById(orderId);
+		Order order = optional.orElseThrow(() -> new OrderNotFoundException("The order with order id: "+orderId+" is not present."));
+		
+		if(status == PaymentStatus.COMPLETED) {
+			order.setStatus(OrderStatus.PAID);
+		}
+		
+		order.setPaymentStatus(status);
+		
+		orderRepository.save(order);
 	}
 
 }

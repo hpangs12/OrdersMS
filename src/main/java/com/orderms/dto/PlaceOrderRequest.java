@@ -16,4 +16,5 @@ public class PlaceOrderRequest {
     private Long userId;
     private String shippingAddress;
     private List<OrderItemRequest> items;
+    private String paymentType;  // CREDIT_CARD, UPI, etc.
 }

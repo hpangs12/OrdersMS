@@ -4,6 +4,8 @@ import java.util.List;
 
 import com.orderms.dto.PlaceOrderRequest;
 import com.orderms.entity.Order;
+import com.orderms.entity.PaymentStatus;
+import com.orderms.exception.OrderNotFoundException;
 import com.orderms.exception.OutOfStockException;
 import com.orderms.exception.UserNotFoundException;
 
@@ -18,5 +20,6 @@ public interface OrderService{
 	public Order getOrder(Long orderId, String jwtToken) throws Exception;	
 	public List<Order> getOrderByUser(Long userId, String jwtToken) throws Exception;
 	public void cancelOrder(Long orderId, String jwtToken) throws Exception;
+	public void updatePaymentStatus(Long orderId, PaymentStatus status) throws OrderNotFoundException;
 
 }
