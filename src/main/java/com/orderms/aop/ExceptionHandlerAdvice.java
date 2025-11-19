@@ -21,7 +21,7 @@ public class ExceptionHandlerAdvice {
 
     @ExceptionHandler(OutOfStockException.class)
     public ResponseEntity<String> handleOutOfStock(OutOfStockException ex) {
-        return new ResponseEntity<>(ex.getMessage(), HttpStatus.BAD_REQUEST);
+        return new ResponseEntity<>(ex.getMessage(), HttpStatus.CONFLICT);
     }
 
     @ExceptionHandler(UserNotFoundException.class)

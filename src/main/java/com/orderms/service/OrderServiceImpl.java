@@ -1,6 +1,8 @@
 package com.orderms.service;
 
+import java.math.BigDecimal;
 import java.sql.Timestamp;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -21,6 +23,7 @@ import com.orderms.dto.UserDTO;
 import com.orderms.entity.Order;
 import com.orderms.entity.OrderItem;
 import com.orderms.entity.OrderStatus;
+import com.orderms.entity.Payment;
 import com.orderms.entity.PaymentStatus;
 import com.orderms.exception.ForbiddenTaskException;
 import com.orderms.exception.OrderCancelException;
@@ -56,7 +59,7 @@ public class OrderServiceImpl implements OrderService{
     	
     	// Check if user exists
     	ResponseEntity<UserDTO> userResponse = restTemplate.exchange(
-    			"http://userms/id/" + request.getUserId(), 
+    			"http://userms/users/" + request.getUserId(), 
     			HttpMethod.GET, 
     			entity,
     			UserDTO.class);
@@ -71,7 +74,7 @@ public class OrderServiceImpl implements OrderService{
         for(OrderItemRequest itemReq : request.getItems()) {
         	
         	ResponseEntity<ProductDTO> productResponse = restTemplate.exchange(
-        			"http://productms/nocache/"+itemReq.getProductId(),
+        			"http://productms/products/nocache/"+itemReq.getProductId(),
         			HttpMethod.GET,
         			entity,
         			ProductDTO.class
@@ -93,10 +96,11 @@ public class OrderServiceImpl implements OrderService{
         }
         
         Order order = new Order();
-        order.setUserId(request.getUserId());
+        order.setUserId(userResponse.getBody().getUserId());
         order.setItems(orderItems);
         order.setShippingAddress(request.getShippingAddress());
-        orderItems.forEach(oi -> oi.setOrder(order));
+        final Order tempOrder = order;
+        orderItems.forEach(oi -> oi.setOrder(tempOrder));
         order.setTotalAmount(totalAmount);
         order.setStatus(OrderStatus.PLACED);
         order.setPaymentType(request.getPaymentType());
@@ -108,8 +112,22 @@ public class OrderServiceImpl implements OrderService{
         orderItems.forEach(orderItem -> {
         	kafkaUtitily.orderPlaced(orderItem.getProductId(), orderItem.getQuantity());
         });
-
-        return orderRepository.save(order);
+        
+        order = orderRepository.save(order);
+        
+        Payment payment = request.getPaymentDetails();
+        payment.setOrderId(order.getOrderId());
+        payment.setUserId(userResponse.getBody().getUserId());
+        
+    	HttpEntity<Payment> paymentEntity = new HttpEntity<Payment>(payment, headers);
+        // Process Payment
+    	ResponseEntity<Payment> payResponse = restTemplate.exchange(
+    			"http://paymentms/payments/process", 
+    			HttpMethod.POST, 
+    			paymentEntity,
+    			Payment.class);
+        
+        return order;
     	
     }
 

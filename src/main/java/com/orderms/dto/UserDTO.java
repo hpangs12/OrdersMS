@@ -19,7 +19,7 @@ import lombok.ToString;
 @NoArgsConstructor
 @ToString
 public class UserDTO {
-	
+	private Integer userId;
 	private String username;
     private String password;
     private String emailId;
