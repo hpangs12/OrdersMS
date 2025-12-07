@@ -1,8 +1,7 @@
 package com.orderms.service;
 
-import java.math.BigDecimal;
 import java.sql.Timestamp;
-import java.time.Instant;
+import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -11,25 +10,24 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
+import com.nimbusds.jwt.JWTClaimsSet;
 import com.orderms.dto.OrderItemRequest;
 import com.orderms.dto.PlaceOrderRequest;
 import com.orderms.dto.ProductDTO;
-import com.orderms.dto.UserDTO;
 import com.orderms.entity.Order;
 import com.orderms.entity.OrderItem;
 import com.orderms.entity.OrderStatus;
 import com.orderms.entity.Payment;
 import com.orderms.entity.PaymentStatus;
-import com.orderms.exception.ForbiddenTaskException;
 import com.orderms.exception.OrderCancelException;
 import com.orderms.exception.OrderNotFoundException;
 import com.orderms.exception.OutOfStockException;
-import com.orderms.exception.UserNotFoundException;
 import com.orderms.repository.OrderRepository;
 import com.orderms.utility.KafkaUtitily;
 
@@ -51,22 +49,20 @@ public class OrderServiceImpl implements OrderService{
     private KafkaUtitily kafkaUtitily;
 
     @Override
-    public Order placeOrder(PlaceOrderRequest request, String jwtToken) throws OutOfStockException, UserNotFoundException {
+    public Order placeOrder(PlaceOrderRequest request, JWTClaimsSet claims) throws OutOfStockException, ParseException {
      
+    	// Get User Id from the Claims
+		Integer userId = claims.getIntegerClaim("userId");
+		
+    	// Get JWT token
+    	String jwtToken = ((JwtAuthenticationToken) SecurityContextHolder.getContext()
+    	    .getAuthentication())
+    	    .getToken()
+    	    .getTokenValue();
+    	
     	HttpHeaders headers = new HttpHeaders();
     	headers.set("Authorization", "Bearer "+jwtToken);
     	HttpEntity<Void> entity = new HttpEntity<Void>(headers);
-    	
-    	// Check if user exists
-    	ResponseEntity<UserDTO> userResponse = restTemplate.exchange(
-    			"http://userms/users/" + request.getUserId(), 
-    			HttpMethod.GET, 
-    			entity,
-    			UserDTO.class);
-    	
-    	if (userResponse.getStatusCode() != HttpStatus.OK) {
-            throw new UserNotFoundException("User not found");
-        }
     	
     	List<OrderItem> orderItems = new ArrayList<>();
         double totalAmount = 0.0;
@@ -96,7 +92,7 @@ public class OrderServiceImpl implements OrderService{
         }
         
         Order order = new Order();
-        order.setUserId(userResponse.getBody().getUserId());
+        order.setUserId(userId);
         order.setItems(orderItems);
         order.setShippingAddress(request.getShippingAddress());
         final Order tempOrder = order;
@@ -117,11 +113,12 @@ public class OrderServiceImpl implements OrderService{
         
         Payment payment = request.getPaymentDetails();
         payment.setOrderId(order.getOrderId());
-        payment.setUserId(userResponse.getBody().getUserId());
+        payment.setUserId(userId);
         
     	HttpEntity<Payment> paymentEntity = new HttpEntity<Payment>(payment, headers);
         // Process Payment
-    	ResponseEntity<Payment> payResponse = restTemplate.exchange(
+    	@SuppressWarnings("unused")
+		ResponseEntity<Payment> payResponse = restTemplate.exchange(
     			"http://paymentms/payments/process", 
     			HttpMethod.POST, 
     			paymentEntity,
@@ -132,27 +129,7 @@ public class OrderServiceImpl implements OrderService{
     }
 
     @Override
-	public Order getOrder(Long orderId, String jwtToken) throws Exception{
-
-		HttpHeaders headers = new HttpHeaders();
-		headers.set("Authorization", "Bearer "+jwtToken);
-		HttpEntity<Void> entity = new HttpEntity<>(headers);
-		
-		ResponseEntity<Boolean> userResponse = restTemplate.exchange(
-				"http://userms/users/auth/validate",
-				HttpMethod.POST,
-				entity,
-				Boolean.class
-				);
-		
-		if (userResponse.getStatusCode() != HttpStatus.OK) {
-            throw new UserNotFoundException("User not found");
-        }
-		
-		Boolean isAuth = userResponse.getBody();
-		if (!isAuth) {
-			throw new ForbiddenTaskException("User Validation Failed. Please try again");
-		}
+	public Order getOrder(Long orderId) throws Exception{
 		
 		Optional<Order> optional = orderRepository.findById(orderId);
 		Order order = optional.orElseThrow(() -> new OrderNotFoundException("The order with order id: "+orderId+" is not present."));
@@ -161,27 +138,7 @@ public class OrderServiceImpl implements OrderService{
 	}
 
 	@Override
-	public List<Order> getOrderByUser(Long userId, String jwtToken) throws Exception{
-
-		HttpHeaders headers = new HttpHeaders();
-		headers.set("Authorization", "Bearer "+jwtToken);
-		HttpEntity<Void> entity = new HttpEntity<>(headers);
-		
-		ResponseEntity<Boolean> userResponse = restTemplate.exchange(
-				"http://userms/auth/validate",
-				HttpMethod.POST,
-				entity,
-				Boolean.class
-				);
-		
-		if (userResponse.getStatusCode() != HttpStatus.OK) {
-            throw new UserNotFoundException("User not found");
-        }
-		
-		Boolean isAuth = userResponse.getBody();
-		if (!isAuth) {
-			throw new ForbiddenTaskException("User Validation Failed. Please try again");
-		}
+	public List<Order> getOrderByUser(Long userId) throws Exception{
 		
 		List<Order> orders = orderRepository.findByUserId(userId);
 		
@@ -189,27 +146,7 @@ public class OrderServiceImpl implements OrderService{
 	}
 
 	@Override
-	public void cancelOrder(Long orderId, String jwtToken) throws Exception{
-
-		HttpHeaders headers = new HttpHeaders();
-		headers.set("Authorization", "Bearer "+jwtToken);
-		HttpEntity<Void> entity = new HttpEntity<>(headers);
-		
-		ResponseEntity<Boolean> userResponse = restTemplate.exchange(
-				"http://userms/auth/validate",
-				HttpMethod.POST,
-				entity,
-				Boolean.class
-				);
-		
-		if (userResponse.getStatusCode() != HttpStatus.OK) {
-            throw new UserNotFoundException("User not found");
-        }
-		
-		Boolean isAuth = userResponse.getBody();
-		if (!isAuth) {
-			throw new ForbiddenTaskException("User Validation Failed. Please try again");
-		}
+	public void cancelOrder(Long orderId) throws Exception{
 		
 		Optional<Order> optional = orderRepository.findById(orderId);
 		Order order = optional.orElseThrow(() -> new OrderNotFoundException("The order with order id: "+orderId+" is not present."));

@@ -6,6 +6,7 @@ import java.util.Map;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.config.TopicBuilder;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
@@ -15,6 +16,7 @@ import org.springframework.stereotype.Service;
  * 
  * This class provides utility implementations for Kafka Operations.
  */
+@Configuration
 @Service
 public class KafkaUtitily {
 
@@ -22,7 +24,7 @@ public class KafkaUtitily {
 	private KafkaTemplate<String, Map<String, String>> template;
 	
 	@Bean
-	public NewTopic orderPlacedEvent() {
+	NewTopic orderPlacedEvent() {
 		return TopicBuilder.name("order_place_event").partitions(1).replicas(1).build();
 	}
 	
